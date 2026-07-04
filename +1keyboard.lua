@@ -2,10 +2,10 @@ local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/jen
 local Window = OrionLib:MakeWindow({Name = "CoolGui", HidePremium = false, SaveConfig = true, ConfigFolder = "CoolGui"})
 
 local scripts = {
-    '',
+    'World3Farm.lua',
 }
 
-local baseUrl = 'https://raw.githubusercontent.com/Fishka132312/+1keyboard/refs/heads/main/Things/'
+local baseUrl = 'https://raw.githubusercontent.com/Fishka132312/-1keyboard/refs/heads/main/Things/'
 
 task.spawn(function()
     for i, scriptName in ipairs(scripts) do
