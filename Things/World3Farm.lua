@@ -1,4 +1,4 @@
--- Сервисы Robloxвфвф31231313
+-- Сервисы Robloxвфвф31231313eqweqe
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
@@ -144,7 +144,7 @@ task.spawn(function()
                         hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         
                         -- Ждем 5 секунд на предпоследней точке перед финальным рывком
-                        task.wait(10) 
+                        task.wait(20) 
                     end
 
                     -- Ещё раз чекаем условия после 5-секундного ожидания
