@@ -1,8 +1,12 @@
--- Сервисы Robloxda
+-- Сервисы Robloxвфвф
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
+
+-- Защита от наложения (генерация уникального ID для этого запуска)
+local scriptSessionId = HttpService and game:GetService("HttpService"):GenerateGUID(false) or tostring(math.random(1, 100000))
+_G.CurrentFarmSession = scriptSessionId
 
 -- Таблица твоих координат
 local points = {
@@ -79,17 +83,16 @@ local function getRemainingDistance(startIndex)
     return totalDist
 end
 
--- Функция принудительного триггера тач-партов (клиентский обход)
+-- Функция принудительного триггера тач-партов
 local function touchNearbyParts(hrp)
-    if not firetouchpart then return end -- Защита, если эксплойт не поддерживает функцию
+    if not firetouchpart then return end 
     
-    -- Ищем все объекты в радиусе 10 метров
     local parts = workspace:GetPartBoundsInRadius(hrp.Position, 10)
     for _, part in ipairs(parts) do
         if part:FindFirstChildOfClass("TouchTransmitter") or part.Name:lower():find("checkpoint") or part.Name:lower():find("finish") then
-            firetouchpart(hrp, part, 0) -- Наступили
+            firetouchpart(hrp, part, 0)
             task.wait(0.01)
-            firetouchpart(hrp, part, 1) -- Убрали ногу
+            firetouchpart(hrp, part, 1)
         end
     end
 end
@@ -97,17 +100,22 @@ end
 -- Основной цикл фарма
 task.spawn(function()
     local isFirstRun = true
-    local bv -- Контроллер анти-гравитации
+    local bv 
 
     while true do
         task.wait(0.1)
+
+        -- Проверка: если этот скрипт устарел (запущен новый), полностью выходим из цикла
+        if _G.CurrentFarmSession ~= scriptSessionId then 
+            if bv then bv:Destroy() end
+            break 
+        end
 
         if _G.StartFarm3 then
             local character = player.Character or player.CharacterAdded:Wait()
             local hrp = character:WaitForChild("HumanoidRootPart", 5)
 
             if hrp then
-                -- Включаем левитацию вместо жесткого якоря (чтобы физика касаний работала)
                 if not bv or bv.Parent ~= hrp then
                     bv = Instance.new("BodyVelocity")
                     bv.Velocity = Vector3.new(0, 0, 0)
@@ -126,31 +134,40 @@ task.spawn(function()
 
                 -- Погнали по точкам
                 for i = startIndex, #points do
-                    if not _G.StartFarm3 then break end
+                    -- Двойная проверка на выключение фарма или перезапуск скрипта
+                    if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId then break end
+
+                    -- Новая фича: Если доехали до предпоследней точки и собираемся лететь на последнюю
+                    if i == #points then
+                        -- Сбрасываем физическую скорость, чтобы не улететь по инерции во время ожидания
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        
+                        -- Ждем 5 секунд на предпоследней точке перед финальным рывком
+                        task.wait(5) 
+                    end
+
+                    -- Ещё раз чекаем условия после 5-секундного ожидания
+                    if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId then break end
 
                     local targetPos = points[i]
                     local currentPos = hrp.Position
                     local distance = (targetPos - currentPos).Magnitude
 
-                    -- Время на отрезок, чтобы уложиться ровно в 25 секунд на весь путь
                     local segmentTime = (distance / totalDistance) * 30
                     if segmentTime <= 0 then segmentTime = 0.02 end
 
-                    -- Обнуляем физическую скорость перед твином
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
 
-                    -- Твиним персонажа. Мы опускаем CFrame на 1.5 студа ниже, 
-                    -- чтобы ноги гарантированно "шаркали" по полу и триггерили зоны
                     local targetCFrame = CFrame.new(targetPos - Vector3.new(0, 1.5, 0))
                     local tweenInfo = TweenInfo.new(segmentTime, Enum.EasingStyle.Linear)
                     local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
                     
                     tween:Play()
                     
-                    -- Спавним проверку касаний прямо во время движения к точке
                     task.spawn(function()
-                        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 do
+                        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId do
                             touchNearbyParts(hrp)
                             task.wait(0.1)
                         end
@@ -159,15 +176,13 @@ task.spawn(function()
                     tween.Completed:Wait()
                 end
 
-                -- Очистка после круга
                 if bv then bv:Destroy() bv = nil end
 
-                if _G.StartFarm3 then
-                    task.wait(1) -- Ждем 1 сек перед повтором
+                if _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId then
+                    task.wait(1) 
                 end
             end
         else
-            -- Если фарм оффнули, убираем левитацию и сбрасываем круг на 1 точку
             if bv then bv:Destroy() bv = nil end
             isFirstRun = true
         end
