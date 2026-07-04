@@ -133,7 +133,7 @@ task.spawn(function()
                     local distance = (targetPos - currentPos).Magnitude
 
                     -- Время на отрезок, чтобы уложиться ровно в 25 секунд на весь путь
-                    local segmentTime = (distance / totalDistance) * 40
+                    local segmentTime = (distance / totalDistance) * 30
                     if segmentTime <= 0 then segmentTime = 0.02 end
 
                     -- Обнуляем физическую скорость перед твином
