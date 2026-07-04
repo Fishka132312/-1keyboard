@@ -77,7 +77,7 @@ task.spawn(function()
             local totalLength = getRemainingPathLength(startIndex, startPos)
             if totalLength == 0 then totalLength = 1 end -- Защита от деления на 0
             
-            local speed = totalLength / 20 -- Скорость (студов в секунду)
+            local speed = totalLength / 30 -- Скорость (студов в секунду)
             
             -- Перебираем точки начиная с ближайшей
             for i = startIndex, #points do
