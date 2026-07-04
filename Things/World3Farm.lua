@@ -154,7 +154,7 @@ task.spawn(function()
                         
                         -- Умное ожидание 20 секунд (проверяет флаги и здоровье каждые 0.1 сек)
                         local waited = 0
-                        while waited < 20 do
+                        while waited < 40 do
                             if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then 
                                 break 
                             end
