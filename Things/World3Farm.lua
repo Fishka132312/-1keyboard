@@ -54,7 +54,7 @@ local points = {
     [46] = Vector3.new(-1433.27, 534.75, 759.82)
 }
 
--- Функция для поиска ближайшей точки к игроку
+-- Поиск ближайшей точки
 local function getClosestIndex(hrp)
     local closestIndex = 1
     local minDistance = math.huge
@@ -70,7 +70,7 @@ local function getClosestIndex(hrp)
     return closestIndex
 end
 
--- Функция для расчета общей дистанции от стартового индекса до конца
+-- Расчет общей дистанции оставшегося пути
 local function getRemainingDistance(startIndex)
     local totalDist = 0
     for i = startIndex, #points - 1 do
@@ -79,59 +79,96 @@ local function getRemainingDistance(startIndex)
     return totalDist
 end
 
--- Основной поток фарма
+-- Функция принудительного триггера тач-партов (клиентский обход)
+local function touchNearbyParts(hrp)
+    if not firetouchpart then return end -- Защита, если эксплойт не поддерживает функцию
+    
+    -- Ищем все объекты в радиусе 10 метров
+    local parts = workspace:GetPartBoundsInRadius(hrp.Position, 10)
+    for _, part in ipairs(parts) do
+        if part:FindFirstChildOfClass("TouchTransmitter") or part.Name:lower():find("checkpoint") or part.Name:lower():find("finish") then
+            firetouchpart(hrp, part, 0) -- Наступили
+            task.wait(0.01)
+            firetouchpart(hrp, part, 1) -- Убрали ногу
+        end
+    end
+end
+
+-- Основной цикл фарма
 task.spawn(function()
     local isFirstRun = true
+    local bv -- Контроллер анти-гравитации
 
     while true do
-        task.wait(0.1) -- Легкая задержка, чтобы не вешать процессор
+        task.wait(0.1)
 
         if _G.StartFarm3 then
             local character = player.Character or player.CharacterAdded:Wait()
             local hrp = character:WaitForChild("HumanoidRootPart", 5)
 
             if hrp then
-                -- Определяем с какой точки начать твин
+                -- Включаем левитацию вместо жесткого якоря (чтобы физика касаний работала)
+                if not bv or bv.Parent ~= hrp then
+                    bv = Instance.new("BodyVelocity")
+                    bv.Velocity = Vector3.new(0, 0, 0)
+                    bv.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+                    bv.Parent = hrp
+                end
+
                 local startIndex = 1
                 if isFirstRun then
                     startIndex = getClosestIndex(hrp)
                     isFirstRun = false
                 end
 
-                -- Считаем общую дистанцию маршрута, чтобы распределить 25 секунд равномерно
                 local totalDistance = getRemainingDistance(startIndex)
-                if totalDistance == 0 then totalDistance = 1 end -- Защита от деления на 0
+                if totalDistance == 0 then totalDistance = 1 end
 
-                hrp.Anchored = true -- Якорим, чтобы не сбивалась физика
-
-                -- Бежим по точкам
+                -- Погнали по точкам
                 for i = startIndex, #points do
-                    if not _G.StartFarm3 then break end -- Экстренная остановка, если выключили
+                    if not _G.StartFarm3 then break end
 
                     local targetPos = points[i]
                     local currentPos = hrp.Position
                     local distance = (targetPos - currentPos).Magnitude
 
-                    -- Вычисляем время для конкретного отрезка пути (пропорционально его длине)
-                    local segmentTime = (distance / totalDistance) * 25
-                    if segmentTime <= 0 then segmentTime = 0.05 end -- Минимальное время на точку
+                    -- Время на отрезок, чтобы уложиться ровно в 25 секунд на весь путь
+                    local segmentTime = (distance / totalDistance) * 40
+                    if segmentTime <= 0 then segmentTime = 0.02 end
 
+                    -- Обнуляем физическую скорость перед твином
+                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+                    -- Твиним персонажа. Мы опускаем CFrame на 1.5 студа ниже, 
+                    -- чтобы ноги гарантированно "шаркали" по полу и триггерили зоны
+                    local targetCFrame = CFrame.new(targetPos - Vector3.new(0, 1.5, 0))
                     local tweenInfo = TweenInfo.new(segmentTime, Enum.EasingStyle.Linear)
-                    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
+                    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
                     
                     tween:Play()
-                    tween.Completed:Wait() -- Ждем окончания полета к точке
+                    
+                    -- Спавним проверку касаний прямо во время движения к точке
+                    task.spawn(function()
+                        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 do
+                            touchNearbyParts(hrp)
+                            task.wait(0.1)
+                        end
+                    end)
+
+                    tween.Completed:Wait()
                 end
 
-                hrp.Anchored = false -- Разъякориваем в конце или при выключении
+                -- Очистка после круга
+                if bv then bv:Destroy() bv = nil end
 
-                -- Если фарм все еще включен, ждем 1 секунду перед новым кругом
                 if _G.StartFarm3 then
-                    task.wait(1)
+                    task.wait(1) -- Ждем 1 сек перед повтором
                 end
             end
         else
-            -- Если фарм выключен, сбрасываем триггер первого раунда
+            -- Если фарм оффнули, убираем левитацию и сбрасываем круг на 1 точку
+            if bv then bv:Destroy() bv = nil end
             isFirstRun = true
         end
     end
