@@ -1,4 +1,4 @@
--- Сервисы Robloxвфвф31231313eqweqe
+-- Сервисы Roblox3123131
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
@@ -62,7 +62,8 @@ local points = {
     [50] = Vector3.new(-1403.14, 532.87, 1428.44),
     [51] = Vector3.new(-1403.14, 533.33, 1465.32),
     [52] = Vector3.new(-1403.05, 442.87, 1483.59),
-    [53] = Vector3.new(-2065.98, 442.87, 1486.54)
+    [53] = Vector3.new(-2065.98, 442.87, 1486.54),
+    [54] = Vector3.new(-2061.79, 445.85, 1461.54)
 }
 
 -- Поиск ближайшей точки
@@ -144,17 +145,24 @@ task.spawn(function()
                     -- Двойная проверка на выключение фарма или перезапуск скрипта
                     if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId then break end
 
-                    -- Новая фича: Если доехали до предпоследней точки и собираемся лететь на последнюю
+                    -- Новая фича: Если доехали до предпоследней точки (перед финальным рывком)
                     if i == #points then
                         -- Сбрасываем физическую скорость, чтобы не улететь по инерции во время ожидания
                         hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                         hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         
-                        -- Ждем 5 секунд на предпоследней точке перед финальным рывком
-                        task.wait(20) 
+                        -- Умное ожидание 20 секунд (проверяет флаг выключения каждые 0.1 сек)
+                        local waited = 0
+                        while waited < 20 do
+                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId then 
+                                break 
+                            end
+                            task.wait(0.1)
+                            waited = waited + 0.1
+                        end
                     end
 
-                    -- Ещё раз чекаем условия после 5-секундного ожидания
+                    -- Ещё раз чекаем условия после ожидания
                     if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId then break end
 
                     local targetPos = points[i]
@@ -173,14 +181,23 @@ task.spawn(function()
                     
                     tween:Play()
                     
+                    local touchLoop = true
                     task.spawn(function()
-                        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId do
+                        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId and touchLoop do
                             touchNearbyParts(hrp)
                             task.wait(0.1)
                         end
                     end)
 
-                    tween.Completed:Wait()
+                    -- Ждем завершения твина, но прерываем, если ферму выключили
+                    while tween.PlaybackState == Enum.PlaybackState.Playing do
+                        if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId then
+                            tween:Cancel()
+                            touchLoop = false
+                            break
+                        end
+                        task.wait(0.05)
+                    end
                 end
 
                 if bv then bv:Destroy() bv = nil end
