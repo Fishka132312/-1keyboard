@@ -44,6 +44,12 @@ Tab:AddToggle({
 	end    
 })
 
+Tab:AddButton({
+	Name = "da",
+	Callback = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Fluxyyy333/HoshiOnTop/main/loader.lua"))()
+  	end    
+})
 
 ---------------------Test-----------------------
 local Tab = Window:MakeTab({
