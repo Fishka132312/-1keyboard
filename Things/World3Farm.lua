@@ -144,7 +144,7 @@ task.spawn(function()
                         hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         
                         -- Ждем 5 секунд на предпоследней точке перед финальным рывком
-                        task.wait(20) 
+                        task.wait(15) 
                     end
 
                     -- Ещё раз чекаем условия после 5-секундного ожидания
