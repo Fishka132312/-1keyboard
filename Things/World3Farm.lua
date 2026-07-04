@@ -173,7 +173,7 @@ task.spawn(function()
                     local currentPos = hrp.Position
                     local distance = (targetPos - currentPos).Magnitude
 
-                    local segmentTime = (distance / totalDistance) * 50
+                    local segmentTime = (distance / totalDistance) * 30
                     if segmentTime <= 0 then segmentTime = 0.02 end
 
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
