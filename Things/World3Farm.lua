@@ -1,4 +1,4 @@
--- Сервисы Roblox
+-- Сервисы Robloxda
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 
@@ -6,9 +6,9 @@ local player = Players.LocalPlayer
 
 -- Таблица твоих координат
 local points = {
-    [1] = Vector3.new(-1455.15, -160.52, -850.64),
-    [2] = Vector3.new(-1454.73, -110.51, -685.06),
-    [3] = Vector3.new(-1451.07, -71.71, -561.84),
+    [1] = Vector3.new(-1429.73, -156.87, -832.64),
+    [2] = Vector3.new(-1432.11, -91.55, -624.94),
+    [3] = Vector3.new(-1426.61, -69.39, -536.87),
     [4] = Vector3.new(-1453.34, -69.39, -505.46),
     [5] = Vector3.new(-1453.84, -69.89, -450.48),
     [6] = Vector3.new(-1453.93, -60.17, -401.57),
