@@ -59,6 +59,13 @@ Tab:AddButton({
   	end    
 })
 
+Tab:AddButton({
+	Name = "Rejoin",
+	Callback = function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/Fishka132312/-1keyboard/refs/heads/main/Things/rejoin.lua'))()  
+  	end    
+})
+
 -------------------------Shader---------------------------
 
 local Tab = Window:MakeTab({
