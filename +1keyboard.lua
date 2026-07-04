@@ -1,5 +1,5 @@
 local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/jensonhirst/Orion/main/source')))()
-local Window = OrionLib:MakeWindow({Name = "CoolGui", HidePremium = false, SaveConfig = true, ConfigFolder = "CoolGui"})
+local Window = OrionLib:MakeWindow({Name = "+1Keyboard", HidePremium = false, SaveConfig = true, ConfigFolder = "+1Keyboard"})
 
 local scripts = {
     'World3Farm.lua',
@@ -42,6 +42,21 @@ Tab:AddToggle({
 	Callback = function(Value)
 		_G.StartFarm3 = Value
 	end    
+})
+
+
+---------------------Test-----------------------
+local Tab = Window:MakeTab({
+	Name = "Test",
+	Icon = "rbxassetid://4483345998",
+	PremiumOnly = false
+})
+
+Tab:AddButton({
+	Name = "Pos",
+	Callback = function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/Fishka132312/-1keyboard/refs/heads/main/Things/copyposition.lua'))()  
+  	end    
 })
 
 -------------------------Shader---------------------------
