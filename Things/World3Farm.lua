@@ -1,11 +1,10 @@
-local TweenService = game:GetService("TweenService")
+-- Сервисы Roblox
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local TweenService = game:GetService("TweenService")
 
--- Переменная активации (можешь менять её из других скриптов или консоли)
-_G.StartFarm3 = false
+local player = Players.LocalPlayer
 
--- Твои координаты
+-- Таблица твоих координат
 local points = {
     [1] = Vector3.new(-1455.15, -160.52, -850.64),
     [2] = Vector3.new(-1454.73, -110.51, -685.06),
@@ -55,14 +54,12 @@ local points = {
     [46] = Vector3.new(-1433.27, 534.75, 759.82)
 }
 
-local currentTween = nil
-local wasEnabled = false
-local forceStartFromFirst = false
-
--- Функция поиска индекса ближайшей точки
-local function getClosestPointIndex(playerPos)
+-- Функция для поиска ближайшей точки к игроку
+local function getClosestIndex(hrp)
     local closestIndex = 1
     local minDistance = math.huge
+    local playerPos = hrp.Position
+
     for i, point in ipairs(points) do
         local dist = (playerPos - point).Magnitude
         if dist < minDistance then
@@ -73,86 +70,69 @@ local function getClosestPointIndex(playerPos)
     return closestIndex
 end
 
--- Основной цикл проверки
+-- Функция для расчета общей дистанции от стартового индекса до конца
+local function getRemainingDistance(startIndex)
+    local totalDist = 0
+    for i = startIndex, #points - 1 do
+        totalDist = totalDist + (points[i] - points[i+1]).Magnitude
+    end
+    return totalDist
+end
+
+-- Основной поток фарма
 task.spawn(function()
+    local isFirstRun = true
+
     while true do
-        task.wait(0.1)
-        
+        task.wait(0.1) -- Легкая задержка, чтобы не вешать процессор
+
         if _G.StartFarm3 then
-            local character = LocalPlayer.Character
-            local hrp = character and character:FindFirstChild("HumanoidRootPart")
-            
+            local character = player.Character or player.CharacterAdded:Wait()
+            local hrp = character:WaitForChild("HumanoidRootPart", 5)
+
             if hrp then
+                -- Определяем с какой точки начать твин
                 local startIndex = 1
-                
-                -- Логика определения стартовой точки
-                if not wasEnabled then
-                    -- Если только что включили скрипт — ищем ближайшую
-                    startIndex = getClosestPointIndex(hrp.Position)
-                    wasEnabled = true
-                elseif forceStartFromFirst then
-                    -- Если это повторный круг — начинаем строго с 1-й
-                    startIndex = 1
-                    forceStartFromFirst = false
-                else
-                    -- Если путь прервался внутри цикла по другой причине, продолжаем
-                    startIndex = getClosestPointIndex(hrp.Position)
+                if isFirstRun then
+                    startIndex = getClosestIndex(hrp)
+                    isFirstRun = false
                 end
-                
-                -- Расчет общего расстояния оставшегося пути (для соблюдения тайминга в 25 сек)
-                local totalDistance = 0
-                local segments = {}
-                
-                -- 1. Расстояние от игрока до его первой целевой точки
-                table.insert(segments, {from = hrp.Position, to = points[startIndex]})
-                totalDistance = totalDistance + (hrp.Position - points[startIndex]).Magnitude
-                
-                -- 2. Расстояние по остальным точкам маршрута
-                for i = startIndex, #points - 1 do
-                    table.insert(segments, {from = points[i], to = points[i+1]})
-                    totalDistance = totalDistance + (points[i] - points[i+1]).Magnitude
-                end
-                
-                -- Скорость, при которой весь этот путь займет ровно 25 секунд
-                local targetTime = 25
-                local calculatedSpeed = totalDistance / targetTime
-                
-                -- Движение по сегментам
-                local completedPath = true
-                for _, segment in ipairs(segments) do
-                    if not _G.StartFarm3 then 
-                        completedPath = false
-                        break 
-                    end
+
+                -- Считаем общую дистанцию маршрута, чтобы распределить 25 секунд равномерно
+                local totalDistance = getRemainingDistance(startIndex)
+                if totalDistance == 0 then totalDistance = 1 end -- Защита от деления на 0
+
+                hrp.Anchored = true -- Якорим, чтобы не сбивалась физика
+
+                -- Бежим по точкам
+                for i = startIndex, #points do
+                    if not _G.StartFarm3 then break end -- Экстренная остановка, если выключили
+
+                    local targetPos = points[i]
+                    local currentPos = hrp.Position
+                    local distance = (targetPos - currentPos).Magnitude
+
+                    -- Вычисляем время для конкретного отрезка пути (пропорционально его длине)
+                    local segmentTime = (distance / totalDistance) * 25
+                    if segmentTime <= 0 then segmentTime = 0.05 end -- Минимальное время на точку
+
+                    local tweenInfo = TweenInfo.new(segmentTime, Enum.EasingStyle.Linear)
+                    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = CFrame.new(targetPos)})
                     
-                    -- Считаем время для конкретного отрезка на основе общей скорости
-                    local distance = (hrp.Position - segment.to).Magnitude
-                    local duration = distance / calculatedSpeed
-                    
-                    if duration > 0 then
-                        local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear)
-                        currentTween = TweenService:Create(hrp, {CFrame = CFrame.new(segment.to)}, tweenInfo)
-                        currentTween:Play()
-                        currentTween.Completed:Wait()
-                    end
+                    tween:Play()
+                    tween.Completed:Wait() -- Ждем окончания полета к точке
                 end
-                
-                -- Если успешно долетели до 46-й точки
-                if completedPath and _G.StartFarm3 then
-                    task.wait(1) -- Ждем 1 секунду перед некст кругом
-                    forceStartFromFirst = true -- Флаг, что следующий круг начнется с [1]
+
+                hrp.Anchored = false -- Разъякориваем в конце или при выключении
+
+                -- Если фарм все еще включен, ждем 1 секунду перед новым кругом
+                if _G.StartFarm3 then
+                    task.wait(1)
                 end
             end
         else
-            -- Если выключили тумблер — сбрасываем состояние и стопаем твин
-            if wasEnabled then
-                wasEnabled = false
-                forceStartFromFirst = false
-                if currentTween then
-                    currentTween:Cancel()
-                    currentTween = nil
-                end
-            end
+            -- Если фарм выключен, сбрасываем триггер первого раунда
+            isFirstRun = true
         end
     end
 end)
