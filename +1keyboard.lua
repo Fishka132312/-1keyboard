@@ -80,6 +80,13 @@ local Tab = Window:MakeTab({
 })
 
 Tab:AddButton({
+	Name = "AntiKill",
+	Callback = function()
+    loadstring(game:HttpGet("https://raw.githubusercontent.com/Fishka132312/-1keyboard/refs/heads/main/Things/AntiKill.lua"))()
+  	end    
+})
+
+Tab:AddButton({
 	Name = "Pos",
 	Callback = function()
     loadstring(game:HttpGet('https://raw.githubusercontent.com/Fishka132312/-1keyboard/refs/heads/main/Things/copyposition.lua'))()  
