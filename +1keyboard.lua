@@ -36,17 +36,23 @@ local Tab = Window:MakeTab({
 	PremiumOnly = false
 })
 
+while not _G.StageDescriptions or #_G.StageDescriptions == 0 do
+    task.wait(0.1)
+end
+
+local dropdownOptions = _G.StageDescriptions 
+local defaultOption = dropdownOptions[1]
+
 Tab:AddDropdown({
-    Name = "Select Stage (Фарм до Чекпоинта)",
-    Default = "1",
-    Options = {"1", "2", "3", "4", "5", "6"},
+    Name = "Select Stage",
+    Default = defaultOption,
+    Options = dropdownOptions,
     Callback = function(Value)
-        -- Вызываем глобальную функцию переключения стейджа
         if _G.SwitchToStage then
             _G.SwitchToStage(Value)
-            print("Активный стейдж изменен на: Stage" .. Value)
+            print("Active Stage: " .. tostring(Value))
         else
-            warn("Основной скрипт фарма еще не запущен!")
+            warn("Error")
         end
     end    
 })
