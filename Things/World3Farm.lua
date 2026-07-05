@@ -75,25 +75,70 @@ local points = {
     [59] = Vector3.new(-2061.79, 442.87, 1487.17)
 }
 
--- НАСТРОЙКА ДИНАМИЧЕСКИХ ЧЕКПОИНТОВ
+-- НАСТРОЙКА ДИНАМИЧЕСКИХ ЧЕКПОИНТОВ (Теперь это массив, UI считает всё автоматически)
 local checkpointsConfig = {
-    [4] = { flag = "Stage1", waitTime = 2.0, checkpointPos = Vector3.new(-1481.60, -66.77, -517.38) },
-    [12] = { flag = "Stage2", waitTime = 5.0, checkpointPos = Vector3.new(-1479.76, -55.32, -17.36) },
-    [23] = { flag = "Stage3", waitTime = 10.0, checkpointPos = Vector3.new(-1476.55, 216.75, 329.53) },
-    [45] = { flag = "Stage4", waitTime = 20.0, checkpointPos = Vector3.new(-1430.01, 534.74, 760.78) },
-    [50] = { flag = "Stage5", waitTime = 30.0, checkpointPos = Vector3.new(-1432.41, 534.68, 1331.77) },
-    [59] = { flag = "Stage6", waitTime = 40.0, checkpointPos = Vector3.new(-2016.78, 444.72, 1462.82) }
+    {
+        pointIndex = 4,
+        flag = "Stage1",
+        waitTime = 2.0,
+        checkpointPos = Vector3.new(-1481.60, -66.77, -517.38),
+        description = "Stage 1 300M"
+    },
+    {
+        pointIndex = 12,
+        flag = "Stage2",
+        waitTime = 5.0,
+        checkpointPos = Vector3.new(-1479.76, -55.32, -17.36),
+        description = "Stage 2 500M"
+    },
+    {
+        pointIndex = 23,
+        flag = "Stage3",
+        waitTime = 10.0,
+        checkpointPos = Vector3.new(-1476.55, 216.75, 329.53),
+        description = "Stage 3 800M"
+    },
+    {
+        pointIndex = 45,
+        flag = "Stage4",
+        waitTime = 20.0,
+        checkpointPos = Vector3.new(-1430.01, 534.74, 760.78),
+        description = "Stage 4 1.25B"
+    },
+    {
+        pointIndex = 50,
+        flag = "Stage5",
+        waitTime = 30.0,
+        checkpointPos = Vector3.new(-1432.41, 534.68, 1331.77),
+        description = "Stage 5 2B"
+    },
+    {
+        pointIndex = 59,
+        flag = "Stage6",
+        waitTime = 40.0,
+        checkpointPos = Vector3.new(-2016.78, 444.72, 1462.82),
+        description = "Stage 6 3.5B"
+    }
 }
 
--- Глобальная функция для переключения стейджей (выключает все, включает один)
-_G.SwitchToStage = function(targetStageNum)
-    for i = 1, 6 do
-        _G["Stage" .. i] = (i == tonumber(targetStageNum))
+-- Глобальная таблица с описаниями стейджей для UI скрипта
+_G.StageDescriptions = {}
+for _, config in ipairs(checkpointsConfig) do
+    table.insert(_G.StageDescriptions, config.description)
+end
+
+-- Глобальная функция для переключения стейджей по их описанию
+_G.SwitchToStage = function(targetDescription)
+    for _, config in ipairs(checkpointsConfig) do
+        -- Будет true только у того флага, чье описание совпало
+        _G[config.flag] = (config.description == targetDescription)
     end
 end
 
--- Инициализация: по умолчанию включен первый стейдж
-_G.SwitchToStage(1)
+-- Инициализация: по умолчанию включаем первый стейдж из списка
+if checkpointsConfig[1] then
+    _G.SwitchToStage(checkpointsConfig[1].description)
+end
 
 
 -- Поиск ближайшей точки
@@ -211,8 +256,16 @@ task.spawn(function()
                     local success = tweenToPosition(hrp, points[i], totalDistance, scriptSessionId, humanoid)
                     if not success then break end
 
-                    -- ПРОВЕРКА НАЛИЧИЯ НАСТРОЕННОГО ЧЕКПОИНТА ДЛЯ ЭТОЙ ТОЧКИ
-                    local config = checkpointsConfig[i]
+                    -- Адаптивный поиск настроек чекпоинта для текущей точки маршрута
+                    local config = nil
+                    for _, cfg in ipairs(checkpointsConfig) do
+                        if cfg.pointIndex == i then
+                            config = cfg
+                            break
+                        end
+                    end
+
+                    -- Если чекпоинт для этой точки настроен и его флаг активен
                     if config and _G[config.flag] == true then
                         -- Останавливаем инерцию
                         hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -228,7 +281,7 @@ task.spawn(function()
                             waited = waited + 0.1
                         end
 
-                        -- Если за время ожидания ничего не изменилось и мы живы — летим на сам чекпоинт
+                        -- Если условия всё ещё соблюдены — летим на сам чекпоинт
                         if _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId and humanoid.Health > 0 and _G[config.flag] then
                             -- Летим напрямую на координаты чекпоинта
                             tweenToPosition(hrp, config.checkpointPos, totalDistance, scriptSessionId, humanoid)
