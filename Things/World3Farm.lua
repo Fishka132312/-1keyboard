@@ -6,7 +6,7 @@ local HttpService = game:GetService("HttpService")
 local player = Players.LocalPlayer
 
 -- ВКЛЮЧАЕМ ФАРМ (В твоем скрипте этого не было, поэтому он не работал!)
-_G.StartFarm3 = true
+_G.StartFarm3 = false
 
 -- Защита от наложения (генерация уникального ID для этого запуска)
 local scriptSessionId = HttpService and HttpService:GenerateGUID(false) or tostring(math.random(1, 100000))
@@ -15,7 +15,7 @@ _G.CurrentFarmSession = scriptSessionId
 -- ТАБЛИЦА КАСТОМНОГО ВРЕМЕНИ ДЛЯ УРОВНЕЙ
 local customTimes = {
     [46] = 1,
-    [47] = 3,
+    [47] = 1,
     [48] = 1,
 }
 
