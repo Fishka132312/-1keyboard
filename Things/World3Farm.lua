@@ -1,9 +1,12 @@
--- Сервисы Roblox
+-- Сервисы Robloxвфвфвф
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
+
+-- ВКЛЮЧАЕМ ФАРМ (В твоем скрипте этого не было, поэтому он не работал!)
+_G.StartFarm3 = true
 
 -- Защита от наложения (генерация уникального ID для этого запуска)
 local scriptSessionId = HttpService and HttpService:GenerateGUID(false) or tostring(math.random(1, 100000))
@@ -153,37 +156,19 @@ task.spawn(function()
                 for i = startIndex, #points do
                     if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
 
-                    -- Логика ожидания на предпоследней точке
-                    if i == #points then
-                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                        
-                        local waited = 0
-                        while waited < 20 do
-                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then 
-                                break 
-                            end
-                            task.wait(0.1)
-                            waited = waited + 0.1
-                        end
-                    end
-
-                    if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
-
                     local targetPos = points[i]
                     local currentPos = hrp.Position
                     local distance = (targetPos - currentPos).Magnitude
 
-                    -- --- ИЗМЕНЕНИЕ ТУТ: Проверка кастомного времени ---
+                    -- Проверка кастомного времени
                     local segmentTime
                     if customTimes[i] then
-                        segmentTime = customTimes[i] -- Берём твоё время, если указано
+                        segmentTime = customTimes[i]
                     else
-                        segmentTime = (distance / totalDistance) * 30 -- Стандартный расчёт
+                        segmentTime = (distance / totalDistance) * 30
                     end
 
                     if segmentTime <= 0 then segmentTime = 0.02 end
-                    -- -------------------------------------------------
 
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                     hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
@@ -209,6 +194,23 @@ task.spawn(function()
                             break
                         end
                         task.wait(0.05)
+                    end
+                    
+                    touchLoop = false -- Останавливаем тач-цикл для этой точки
+
+                    -- ЛОГИКА ОЖИДАНИЯ НА ФИНИШЕ (Исправлено: теперь ждем ПОСЛЕ прилета на последнюю точку)
+                    if i == #points then
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        
+                        local waited = 0
+                        while waited < 20 do
+                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then 
+                                break 
+                            end
+                            task.wait(0.1)
+                            waited = waited + 0.1
+                        end
                     end
                 end
 
