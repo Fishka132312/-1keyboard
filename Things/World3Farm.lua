@@ -1,11 +1,10 @@
--- Сервисы Robloxвфвфвф
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 
--- ВКЛЮЧАЕМ ФАРМ (В твоем скрипте этого не было, поэтому он не работал!)
+-- Изначально скрипт ВЫКЛЮЧЕН. Ждет активации из другого скрипта.
 _G.StartFarm3 = false
 
 -- Защита от наложения (генерация уникального ID для этого запуска)
@@ -83,7 +82,6 @@ local points = {
     [60] = Vector3.new(-2062.15, 444.64, 1463.60)
 }
 
--- Поиск ближайшей точки
 local function getClosestIndex(hrp)
     local closestIndex = 1
     local minDistance = math.huge
@@ -99,7 +97,6 @@ local function getClosestIndex(hrp)
     return closestIndex
 end
 
--- Расчет общей дистанции оставшегося пути
 local function getRemainingDistance(startIndex)
     local totalDist = 0
     for i = startIndex, #points - 1 do
@@ -108,7 +105,6 @@ local function getRemainingDistance(startIndex)
     return totalDist
 end
 
--- Функция принудительного триггера тач-партов
 local function touchNearbyParts(hrp)
     if not firetouchpart then return end 
     
@@ -129,7 +125,7 @@ task.spawn(function()
     while true do
         task.wait(0.1)
 
-        -- Проверка сессии
+        -- Проверка сессии (если запустил заново — старый цикл вырубается)
         if _G.CurrentFarmSession ~= scriptSessionId then 
             if bv then bv:Destroy() end
             break 
@@ -160,7 +156,6 @@ task.spawn(function()
                     local currentPos = hrp.Position
                     local distance = (targetPos - currentPos).Magnitude
 
-                    -- Проверка кастомного времени
                     local segmentTime
                     if customTimes[i] then
                         segmentTime = customTimes[i]
@@ -196,24 +191,26 @@ task.spawn(function()
                         task.wait(0.05)
                     end
                     
-                    touchLoop = false -- Останавливаем тач-цикл для этой точки
+                    touchLoop = false 
 
-                    -- ЛОГИКА ОЖИДАНИЯ НА ФИНИШЕ (Исправлено: теперь ждем ПОСЛЕ прилета на последнюю точку)
-                    if i == #points then
+                    -- Финишное ожидание
+                    if i == #points and _G.StartFarm3 then
                         hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                         hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         
                         local waited = 0
-                        while waited < 20 do
-                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then 
-                                break 
-                            end
+                        while waited < 20 and _G.StartFarm3 do
+                            if _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
                             task.wait(0.1)
                             waited = waited + 0.1
                         end
                     end
                 end
 
+                -- Если фарм выключили, убираем зависшую скорость персонажа
+                if not _G.StartFarm3 and hrp then
+                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                end
                 if bv then bv:Destroy() bv = nil end
 
                 if humanoid.Health <= 0 then
@@ -225,7 +222,15 @@ task.spawn(function()
                 task.wait(1)
             end
         else
-            if bv then bv:Destroy() bv = nil end
+            -- Если фарм принудительно отключен во внешнем скрипте
+            if bv then 
+                bv:Destroy() 
+                bv = nil 
+                -- Мягко сбрасываем скорость персонажа, чтобы он не улетел по инерции
+                local character = player.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
+                if hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end
+            end
         end
     end
 end)
