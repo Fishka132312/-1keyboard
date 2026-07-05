@@ -1,14 +1,18 @@
 -- Сервисы Roblox
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
+local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 
 -- Защита от наложения (генерация уникального ID для этого запуска)
-local scriptSessionId = HttpService and game:GetService("HttpService"):GenerateGUID(false) or tostring(math.random(1, 100000))
+local scriptSessionId = HttpService and HttpService:GenerateGUID(false) or tostring(math.random(1, 100000))
 _G.CurrentFarmSession = scriptSessionId
 
--- Таблица твоих координат
+-- Переменная старта фарма (ПО УМОЛЧАНИЮ ВЫКЛЮЧЕНА)
+_G.StartFarm3 = false
+
+-- Таблица твоих координат пути
 local points = {
     [1] = Vector3.new(-1429.73, -156.87, -832.64),
     [2] = Vector3.new(-1432.11, -91.55, -624.94),
@@ -68,9 +72,29 @@ local points = {
     [56] = Vector3.new(-1908.89, 442.87, 1491.20),
     [57] = Vector3.new(-1900.88, 423.17, 1471.63),
     [58] = Vector3.new(-2061.79, 427.09, 1481.41),
-    [59] = Vector3.new(-2061.79, 442.87, 1487.17),
-    [60] = Vector3.new(-2062.15, 444.64, 1463.60)
+    [59] = Vector3.new(-2061.79, 442.87, 1487.17)
 }
+
+-- НАСТРОЙКА ДИНАМИЧЕСКИХ ЧЕКПОИНТОВ
+local checkpointsConfig = {
+    [4] = { flag = "Stage1", waitTime = 2.0, checkpointPos = Vector3.new(-1481.60, -66.77, -517.38) },
+    [12] = { flag = "Stage2", waitTime = 5.0, checkpointPos = Vector3.new(-1479.76, -55.32, -17.36) },
+    [23] = { flag = "Stage3", waitTime = 10.0, checkpointPos = Vector3.new(-1476.55, 216.75, 329.53) },
+    [45] = { flag = "Stage4", waitTime = 20.0, checkpointPos = Vector3.new(-1430.01, 534.74, 760.78) },
+    [50] = { flag = "Stage5", waitTime = 30.0, checkpointPos = Vector3.new(-1432.41, 534.68, 1331.77) },
+    [59] = { flag = "Stage6", waitTime = 40.0, checkpointPos = Vector3.new(-2016.78, 444.72, 1462.82) }
+}
+
+-- Глобальная функция для переключения стейджей (выключает все, включает один)
+_G.SwitchToStage = function(targetStageNum)
+    for i = 1, 6 do
+        _G["Stage" .. i] = (i == tonumber(targetStageNum))
+    end
+end
+
+-- Инициализация: по умолчанию включен первый стейдж
+_G.SwitchToStage(1)
+
 
 -- Поиск ближайшей точки
 local function getClosestIndex(hrp)
@@ -111,15 +135,52 @@ local function touchNearbyParts(hrp)
     end
 end
 
+-- Вспомогательная функция для плавного твина к конкретной точке
+local function tweenToPosition(hrp, targetPos, totalDistance, currentSessionId, humanoid)
+    if not _G.StartFarm3 or _G.CurrentFarmSession ~= currentSessionId or humanoid.Health <= 0 then return false end
+
+    local currentPos = hrp.Position
+    local distance = (targetPos - currentPos).Magnitude
+    local segmentTime = (distance / totalDistance) * 30
+    if segmentTime <= 0 then segmentTime = 0.02 end
+
+    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+
+    local targetCFrame = CFrame.new(targetPos - Vector3.new(0, 1.5, 0))
+    local tweenInfo = TweenInfo.new(segmentTime, Enum.EasingStyle.Linear)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    
+    tween:Play()
+    
+    local touchLoop = true
+    task.spawn(function()
+        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 and _G.CurrentFarmSession == currentSessionId and humanoid.Health > 0 and touchLoop do
+            touchNearbyParts(hrp)
+            task.wait(0.1)
+        end
+    end)
+
+    while tween.PlaybackState == Enum.PlaybackState.Playing do
+        if not _G.StartFarm3 or _G.CurrentFarmSession ~= currentSessionId or humanoid.Health <= 0 then
+            tween:Cancel()
+            touchLoop = false
+            return false
+        end
+        task.wait(0.05)
+    end
+    touchLoop = false
+    return true
+end
+
 -- Основной цикл фарма
 task.spawn(function()
-    local isFirstRun = true
     local bv 
 
     while true do
         task.wait(0.1)
 
-        -- Проверка: если этот скрипт устарел (запущен новый), полностью выходим из цикла
+        -- Проверка сессии
         if _G.CurrentFarmSession ~= scriptSessionId then 
             if bv then bv:Destroy() end
             break 
@@ -130,7 +191,6 @@ task.spawn(function()
             local humanoid = character:WaitForChild("Humanoid", 5)
             local hrp = character:WaitForChild("HumanoidRootPart", 5)
 
-            -- Если персонаж жив и все элементы на месте
             if hrp and humanoid and humanoid.Health > 0 then
                 if not bv or bv.Parent ~= hrp then
                     bv = Instance.new("BodyVelocity")
@@ -139,81 +199,54 @@ task.spawn(function()
                     bv.Parent = hrp
                 end
 
-                -- Всегда ищем ближайшую точку (и при первом запуске, и после респавна)
                 local startIndex = getClosestIndex(hrp)
-
                 local totalDistance = getRemainingDistance(startIndex)
                 if totalDistance == 0 then totalDistance = 1 end
 
-                -- Погнали по точкам
+                -- Бежим по точкам пути
                 for i = startIndex, #points do
-                    -- Проверки на выключение, сессию или смерть персонажа
                     if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
 
-                    -- Новая фича: Если доехали до предпоследней точки (перед финальным рывком)
-                    if i == #points then
+                    -- Твиним к текущей точке маршрута
+                    local success = tweenToPosition(hrp, points[i], totalDistance, scriptSessionId, humanoid)
+                    if not success then break end
+
+                    -- ПРОВЕРКА НАЛИЧИЯ НАСТРОЕННОГО ЧЕКПОИНТА ДЛЯ ЭТОЙ ТОЧКИ
+                    local config = checkpointsConfig[i]
+                    if config and _G[config.flag] == true then
+                        -- Останавливаем инерцию
                         hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
                         hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
                         
-                        -- Умное ожидание 20 секунд (проверяет флаги и здоровье каждые 0.1 сек)
+                        -- Умное ожидание времени, указанного в конфиге
                         local waited = 0
-                        while waited < 20 do
-                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then 
+                        while waited < config.waitTime do
+                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 or not _G[config.flag] then 
                                 break 
                             end
                             task.wait(0.1)
                             waited = waited + 0.1
                         end
-                    end
 
-                    -- Ещё раз чекаем условия после ожидания
-                    if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
-
-                    local targetPos = points[i]
-                    local currentPos = hrp.Position
-                    local distance = (targetPos - currentPos).Magnitude
-
-                    local segmentTime = (distance / totalDistance) * 30
-                    if segmentTime <= 0 then segmentTime = 0.02 end
-
-                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                    hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-
-                    local targetCFrame = CFrame.new(targetPos - Vector3.new(0, 1.5, 0))
-                    local tweenInfo = TweenInfo.new(segmentTime, Enum.EasingStyle.Linear)
-                    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-                    
-                    tween:Play()
-                    
-                    local touchLoop = true
-                    task.spawn(function()
-                        while tween.PlaybackState == Enum.PlaybackState.Playing and _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId and humanoid.Health > 0 and touchLoop do
-                            touchNearbyParts(hrp)
-                            task.wait(0.1)
-                        end
-                    end)
-
-                    -- Ждем завершения твина, но прерываем при выключении или смерти
-                    while tween.PlaybackState == Enum.PlaybackState.Playing do
-                        if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then
-                            tween:Cancel()
-                            touchLoop = false
+                        -- Если за время ожидания ничего не изменилось и мы живы — летим на сам чекпоинт
+                        if _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId and humanoid.Health > 0 and _G[config.flag] then
+                            -- Летим напрямую на координаты чекпоинта
+                            tweenToPosition(hrp, config.checkpointPos, totalDistance, scriptSessionId, humanoid)
+                            
+                            -- Прерываем дальнейший полет по общей таблице (завершаем этот круг)
                             break
                         end
-                        task.wait(0.05)
                     end
                 end
 
                 if bv then bv:Destroy() bv = nil end
 
-                -- Если персонаж умер во время прохода по точкам
                 if humanoid.Health <= 0 then
-                    task.wait(2) -- Ждем 2 секунды перед респавном/повторной попыткой
-                elseif _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId then
+                    task.wait(2)
+                else
                     task.wait(1) 
                 end
             else
-                -- Если humanoid не найден или мертв на этапе инициализации
                 task.wait(1)
             end
         else
