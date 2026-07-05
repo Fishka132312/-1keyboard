@@ -1,22 +1,12 @@
+-- Сервисы Roblox
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local HttpService = game:GetService("HttpService")
 
 local player = Players.LocalPlayer
 
--- Изначально скрипт ВЫКЛЮЧЕН. Ждет активации из другого скрипта.
-_G.StartFarm3 = false
-
 -- Защита от наложения (генерация уникального ID для этого запуска)
-local scriptSessionId = HttpService and HttpService:GenerateGUID(false) or tostring(math.random(1, 100000))
+local scriptSessionId = HttpService and game:GetService("HttpService"):GenerateGUID(false) or tostring(math.random(1, 100000))
 _G.CurrentFarmSession = scriptSessionId
-
--- ТАБЛИЦА КАСТОМНОГО ВРЕМЕНИ ДЛЯ УРОВНЕЙ
-local customTimes = {
-    [46] = 1,
-    [47] = 1,
-    [48] = 1,
-}
 
 -- Таблица твоих координат
 local points = {
@@ -82,6 +72,7 @@ local points = {
     [60] = Vector3.new(-2062.15, 444.64, 1463.60)
 }
 
+-- Поиск ближайшей точки
 local function getClosestIndex(hrp)
     local closestIndex = 1
     local minDistance = math.huge
@@ -97,6 +88,7 @@ local function getClosestIndex(hrp)
     return closestIndex
 end
 
+-- Расчет общей дистанции оставшегося пути
 local function getRemainingDistance(startIndex)
     local totalDist = 0
     for i = startIndex, #points - 1 do
@@ -105,6 +97,7 @@ local function getRemainingDistance(startIndex)
     return totalDist
 end
 
+-- Функция принудительного триггера тач-партов
 local function touchNearbyParts(hrp)
     if not firetouchpart then return end 
     
@@ -120,12 +113,13 @@ end
 
 -- Основной цикл фарма
 task.spawn(function()
+    local isFirstRun = true
     local bv 
 
     while true do
         task.wait(0.1)
 
-        -- Проверка сессии (если запустил заново — старый цикл вырубается)
+        -- Проверка: если этот скрипт устарел (запущен новый), полностью выходим из цикла
         if _G.CurrentFarmSession ~= scriptSessionId then 
             if bv then bv:Destroy() end
             break 
@@ -136,6 +130,7 @@ task.spawn(function()
             local humanoid = character:WaitForChild("Humanoid", 5)
             local hrp = character:WaitForChild("HumanoidRootPart", 5)
 
+            -- Если персонаж жив и все элементы на месте
             if hrp and humanoid and humanoid.Health > 0 then
                 if not bv or bv.Parent ~= hrp then
                     bv = Instance.new("BodyVelocity")
@@ -144,25 +139,41 @@ task.spawn(function()
                     bv.Parent = hrp
                 end
 
+                -- Всегда ищем ближайшую точку (и при первом запуске, и после респавна)
                 local startIndex = getClosestIndex(hrp)
+
                 local totalDistance = getRemainingDistance(startIndex)
                 if totalDistance == 0 then totalDistance = 1 end
 
                 -- Погнали по точкам
                 for i = startIndex, #points do
+                    -- Проверки на выключение, сессию или смерть персонажа
+                    if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
+
+                    -- Новая фича: Если доехали до предпоследней точки (перед финальным рывком)
+                    if i == #points then
+                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                        
+                        -- Умное ожидание 20 секунд (проверяет флаги и здоровье каждые 0.1 сек)
+                        local waited = 0
+                        while waited < 20 do
+                            if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then 
+                                break 
+                            end
+                            task.wait(0.1)
+                            waited = waited + 0.1
+                        end
+                    end
+
+                    -- Ещё раз чекаем условия после ожидания
                     if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
 
                     local targetPos = points[i]
                     local currentPos = hrp.Position
                     local distance = (targetPos - currentPos).Magnitude
 
-                    local segmentTime
-                    if customTimes[i] then
-                        segmentTime = customTimes[i]
-                    else
-                        segmentTime = (distance / totalDistance) * 30
-                    end
-
+                    local segmentTime = (distance / totalDistance) * 30
                     if segmentTime <= 0 then segmentTime = 0.02 end
 
                     hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
@@ -182,6 +193,7 @@ task.spawn(function()
                         end
                     end)
 
+                    -- Ждем завершения твина, но прерываем при выключении или смерти
                     while tween.PlaybackState == Enum.PlaybackState.Playing do
                         if not _G.StartFarm3 or _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then
                             tween:Cancel()
@@ -190,47 +202,22 @@ task.spawn(function()
                         end
                         task.wait(0.05)
                     end
-                    
-                    touchLoop = false 
-
-                    -- Финишное ожидание
-                    if i == #points and _G.StartFarm3 then
-                        hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                        hrp.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
-                        
-                        local waited = 0
-                        while waited < 20 and _G.StartFarm3 do
-                            if _G.CurrentFarmSession ~= scriptSessionId or humanoid.Health <= 0 then break end
-                            task.wait(0.1)
-                            waited = waited + 0.1
-                        end
-                    end
                 end
 
-                -- Если фарм выключили, убираем зависшую скорость персонажа
-                if not _G.StartFarm3 and hrp then
-                    hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
-                end
                 if bv then bv:Destroy() bv = nil end
 
+                -- Если персонаж умер во время прохода по точкам
                 if humanoid.Health <= 0 then
-                    task.wait(2)
+                    task.wait(2) -- Ждем 2 секунды перед респавном/повторной попыткой
                 elseif _G.StartFarm3 and _G.CurrentFarmSession == scriptSessionId then
                     task.wait(1) 
                 end
             else
+                -- Если humanoid не найден или мертв на этапе инициализации
                 task.wait(1)
             end
         else
-            -- Если фарм принудительно отключен во внешнем скрипте
-            if bv then 
-                bv:Destroy() 
-                bv = nil 
-                -- Мягко сбрасываем скорость персонажа, чтобы он не улетел по инерции
-                local character = player.Character
-                local hrp = character and character:FindFirstChild("HumanoidRootPart")
-                if hrp then hrp.AssemblyLinearVelocity = Vector3.new(0, 0, 0) end
-            end
+            if bv then bv:Destroy() bv = nil end
         end
     end
 end)
