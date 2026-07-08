@@ -1,5 +1,4 @@
 local Players = game:GetService("Players")
-local TweenService = game:GetService("TweenService") -- Используем для плавности, если нужно, но тут напрямую через CFrame
 local LocalPlayer = Players.LocalPlayer
 
 -- Создание GUI
@@ -10,7 +9,7 @@ screenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local toggleButton = Instance.new("TextButton")
 toggleButton.Size = UDim2.new(0, 200, 0, 50)
-toggleButton.Position = UDim2.new(0.5, -100, 0.1, 0) -- Сверху по центру экрана
+toggleButton.Position = UDim2.new(0.5, -100, 0.1, 0)
 toggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
 toggleButton.TextSize = 18
@@ -19,7 +18,6 @@ toggleButton.Text = "Farm Coins: OFF"
 toggleButton.BorderSizePixel = 0
 toggleButton.Parent = screenGui
 
--- Скругление углов для красоты
 local uiCorner = Instance.new("UICorner")
 uiCorner.CornerRadius = UDim.new(0, 8)
 uiCorner.Parent = toggleButton
@@ -27,15 +25,20 @@ uiCorner.Parent = toggleButton
 -- Настройки
 local COIN_FOLDER = workspace:WaitForChild("CoinBattleCoins")
 local isFarming = false
-local delayBetweenTp = 0.1 -- Задержка между телепортами (в секундах), чтобы античит не сразу кикнул
+local delayBetweenTp = 0.15 -- Чуть увеличил для надёжности подбора, можно снизить
 
--- Функция для рекурсивного поиска всех деталей (монеток) в папке
-local function getAllCoins(folder)
+-- Таблица для отслеживания уже посещенных монеток
+local visitedCoins = {}
+
+-- Получение всех уникальных монеток, на которых мы еще не были
+local function getUnvisitedCoins(folder)
 	local coins = {}
 	for _, obj in ipairs(folder:GetDescendants()) do
-		-- Проверяем, является ли объект партом (или MeshPart) и содержит ли в названии "Coin" (или просто берём все BasePart)
 		if obj:IsA("BasePart") then
-			table.insert(coins, obj)
+			-- Проверяем, не прыгали ли мы уже на эту конкретную монетку
+			if not visitedCoins[obj] then
+				table.insert(coins, obj)
+			end
 		end
 	end
 	return coins
@@ -49,23 +52,28 @@ local function startFarming()
 		local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 		
 		if rootPart and humanoid and humanoid.Health > 0 then
-			local coins = getAllCoins(COIN_FOLDER)
+			local coins = getUnvisitedCoins(COIN_FOLDER)
 			
 			if #coins == 0 then
-				task.wait(0.5) -- Если монеток пока нет, ждем полсекунды
+				-- Если новых монеток нет, значит мы обошли вообще всё, что сейчас спавнилось.
+				-- Очищаем историю, чтобы на несобранные (оставшиеся) монетки можно было прыгнуть заново.
+				table.clear(visitedCoins)
+				task.wait(0.3)
 			else
 				for _, coin in ipairs(coins) do
 					if not isFarming then break end
-					-- Проверяем существование монетки перед ТП
+					
 					if coin and coin.Parent then 
-						-- Телепортируем игрока на позицию монетки
+						-- Добавляем монетку в список посещенных ДО телепорта, чтобы не спамить на неё
+						visitedCoins[coin] = true
+						
 						rootPart.CFrame = coin.CFrame
-						task.wait(delayBetweenTp) -- Пауза для подбора
+						task.wait(delayBetweenTp)
 					end
 				end
 			end
 		else
-			task.wait(1) -- Ждем возрождения, если персонаж погиб
+			task.wait(1)
 		end
 		task.wait()
 	end
@@ -77,10 +85,11 @@ toggleButton.MouseButton1Click:Connect(function()
 	
 	if isFarming then
 		toggleButton.Text = "Farm Coins: ON"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 100) -- Зеленый при включении
+		toggleButton.BackgroundColor3 = Color3.fromRGB(0, 170, 100)
 		task.spawn(startFarming)
 	else
 		toggleButton.Text = "Farm Coins: OFF"
-		toggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30) -- Серый при выключении
+		toggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		table.clear(visitedCoins) -- Сбрасываем кэш при выключении
 	end
 end)
